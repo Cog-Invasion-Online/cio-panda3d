@@ -549,6 +549,18 @@ def LocateBinary(binary):
         p = os.environ["PATH"]
 
     pathList = p.split(os.pathsep)
+    
+    # Nirai hack
+    if GetHost() == 'windows' and not binary.endswith('.exe'):
+        binary += '.exe'
+        
+    basename = os.path.basename(binary)
+    prebuilt = 'prebuilt/%s/%s' % (GetHost(), basename)
+    if os.path.isfile(prebuilt):
+        return prebuilt
+
+    elif GetHost() == 'darwin' and os.path.isfile('prebuilt/darwin/' + basename):
+        return 'prebuilt/darwin/' + basename
 
     if GetHost() == 'windows':
         if not binary.endswith('.exe'):
@@ -2387,6 +2399,11 @@ def SdkLocatePhysX():
     # Try to find a PhysX installation on the system.
     for (ver, key) in PHYSXVERSIONINFO:
         if (GetHost() == "windows"):
+
+            SDK["PHYSX"] = "D:\\OTHER\\Programs\\PhysX2.8.4\\SDKs"
+            SDK["PHYSXLIBS"] = SDK["PHYSX"] + "/lib/Win64"
+
+            """
             folders = "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Installer\\Folders"
             for folder in ListRegistryValues(folders):
                 if folder.endswith("NVIDIA PhysX SDK\\%s\\SDKs\\" % key) or \
@@ -2401,6 +2418,7 @@ def SdkLocatePhysX():
                         AddToPathEnv("PATH", folder + "/../Bin/win32/")
 
                     return
+            """
 
         elif (GetHost() == "linux"):
             incpath = "/usr/include/PhysX/%s/SDKs" % key
@@ -3285,7 +3303,7 @@ def CalcLocation(fn, ipath):
 
 
 def FindLocation(fn, ipath):
-    if (GetLinkAllStatic() and fn.endswith(".dll")):
+    if (GetLinkAllStatic() and (fn.endswith(".dll") or fn.endswith(".pyd"))):
         fn = fn[:-4] + ".lib"
     loc = CalcLocation(fn, ipath)
     base, ext = os.path.splitext(fn)
