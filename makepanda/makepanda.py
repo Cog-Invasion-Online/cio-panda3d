@@ -948,8 +948,6 @@ if (COMPILER=="GCC"):
 
     if GetTarget() == 'darwin':
         LibName("ALWAYS", "-framework AppKit")
-        if (PkgSkip("OPENCV")==0):
-            LibName("OPENCV", "-framework QuickTime")
         LibName("AGL", "-framework AGL")
         LibName("CARBON", "-framework Carbon")
         LibName("COCOA", "-framework Cocoa")
@@ -1336,9 +1334,10 @@ def CompileCxx(obj,src,opts):
                     # Work around Apple compiler bug.
                     cmd += " -U__EXCEPTIONS"
 
-            if 'RTTI' not in opts:
+            target = GetTarget()
+            if 'RTTI' not in opts and target != "darwin":
                 # We always disable RTTI on Android for memory usage reasons.
-                if optlevel >= 4 or GetTarget() == "android":
+                if optlevel >= 4 or target == "android":
                     cmd += " -fno-rtti"
 
         if ('SSE2' in opts or not PkgSkip("SSE2")) and not arch.startswith("arm") and arch != 'aarch64':
@@ -1352,6 +1351,9 @@ def CompileCxx(obj,src,opts):
         if optlevel == 3:
             # Fast math is nice, but we'd like to see NaN in dev builds.
             cmd += " -fno-finite-math-only"
+
+        # Make sure this is off to avoid GCC/Eigen bug (see GitHub #228)
+        cmd += " -fno-unsafe-math-optimizations"
 
         if (optlevel==1): cmd += " -ggdb -D_DEBUG"
         if (optlevel==2): cmd += " -O1 -D_DEBUG"
@@ -2270,6 +2272,7 @@ DTOOL_CONFIG=[
     ("OS_SIMPLE_THREADS",              '1',                      '1'),
     ("DEBUG_THREADS",                  'UNDEF',                  'UNDEF'),
     ("HAVE_POSIX_THREADS",             'UNDEF',                  '1'),
+    ("MUTEX_SPINLOCK",                 'UNDEF',                  'UNDEF'),
     ("HAVE_AUDIO",                     '1',                      '1'),
     ("NOTIFY_DEBUG",                   'UNDEF',                  'UNDEF'),
     ("DO_PSTATS",                      'UNDEF',                  'UNDEF'),
@@ -2883,6 +2886,9 @@ if (PkgSkip("SPEEDTREE")==0):
 else:
     # otherwise, disable it.
     confautoprc = confautoprc.replace('#st#', '#')
+
+if PkgSkip("ASSIMP"):
+    confautoprc = confautoprc.replace("load-file-type p3assimp", "#load-file-type p3assimp")
 
 if (os.path.isfile("makepanda/myconfig.in")):
     configprc = ReadFile("makepanda/myconfig.in")
@@ -3550,6 +3556,7 @@ IGATEFILES += [
     "dSearchPath.h",
     "executionEnvironment.h",
     "textEncoder.h",
+    "textEncoder_ext.h",
     "filename.h",
     "filename_ext.h",
     "globPattern.h",
@@ -5230,7 +5237,7 @@ if (PkgSkip("DIRECT")==0):
 #
 
 if (PkgSkip("DIRECT")==0):
-  OPTS=['DIR:direct/src/dcparser', 'WITHINPANDA', 'BISONPREFIX_dcyy', 'PYTHON']
+  OPTS=['DIR:direct/src/dcparser', 'BUILDING:DIRECT_DCPARSER', 'WITHINPANDA', 'BISONPREFIX_dcyy', 'PYTHON']
   CreateFile(GetOutputDir()+"/include/dcParser.h")
   TargetAdd('p3dcparser_dcParser.obj', opts=OPTS, input='dcParser.yxx')
   TargetAdd('dcParser.h', input='p3dcparser_dcParser.obj', opts=['DEPENDENCYONLY'])
