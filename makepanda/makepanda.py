@@ -222,7 +222,7 @@ def parseopts(args):
             elif (option=="--arch"): target_arch = value.strip()
             elif (option=="--nocolor"): DisableColors()
             elif (option=="--version"):
-                match = re.match(r'^\d+\.\d+\.\d+', value)
+                match = re.match(r'^\d+\.\d+(\.\d+)+', value)
                 if not match:
                     usage("version requires three digits")
                 WHLVERSION = value
@@ -2690,7 +2690,7 @@ PANDAVERSION_H="""
 #define PANDA_SEQUENCE_VERSION $VERSION3
 #define PANDA_VERSION $NVERSION
 #define PANDA_NUMERIC_VERSION $NVERSION
-#define PANDA_VERSION_STR "$VERSION1.$VERSION2.$VERSION3"
+#define PANDA_VERSION_STR "$VERSION"
 #define PANDA_ABI_VERSION_STR "$VERSION1.$VERSION2"
 #define PANDA_DISTRIBUTOR "$DISTRIBUTOR"
 #define PANDA_PACKAGE_VERSION_STR "$RTDIST_VERSION"
@@ -2809,6 +2809,7 @@ def CreatePandaVersionFiles():
     pandaversion_h = pandaversion_h.replace("$VERSION1",str(version1))
     pandaversion_h = pandaversion_h.replace("$VERSION2",str(version2))
     pandaversion_h = pandaversion_h.replace("$VERSION3",str(version3))
+    pandaversion_h = pandaversion_h.replace("$VERSION",VERSION)
     pandaversion_h = pandaversion_h.replace("$NVERSION",str(nversion))
     pandaversion_h = pandaversion_h.replace("$DISTRIBUTOR",DISTRIBUTOR)
     pandaversion_h = pandaversion_h.replace("$RTDIST_VERSION",RTDIST_VERSION)
@@ -2909,7 +2910,9 @@ if '__file__' in locals():
 
     bindir = os.path.join(os.path.dirname(__file__), '..', 'bin')
     if os.path.isdir(bindir):
-        if not os.environ.get('PATH'):
+        if hasattr(os, 'add_dll_directory'):
+            os.add_dll_directory(bindir)
+        elif not os.environ.get('PATH'):
             os.environ['PATH'] = bindir
         else:
             os.environ['PATH'] = bindir + os.pathsep + os.environ['PATH']
@@ -3216,9 +3219,8 @@ if tp_dir is not None:
 
 # Copy over the MSVC runtime.
 if GetTarget() == 'windows' and "VISUALSTUDIO" in SDK:
-    vsver = "%s%s" % SDK["VISUALSTUDIO_VERSION"]
     vcver = "%s%s" % (SDK["MSVC_VERSION"][0], 0)        # ignore minor version.
-    crtname = "Microsoft.VC%s.CRT" % (vsver)
+    crtname = "Microsoft.VC%s.CRT" % (vcver)
     if ("VCTOOLSVERSION" in SDK):
         dir = os.path.join(SDK["VISUALSTUDIO"], "VC", "Redist", "MSVC", SDK["VCTOOLSVERSION"], "onecore", GetTargetArch(), crtname)
     else:
