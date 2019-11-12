@@ -15,7 +15,7 @@ import tempfile
 import subprocess
 from distutils.sysconfig import get_config_var
 from optparse import OptionParser
-from makepandacore import ColorText, LocateBinary, ParsePandaVersion, GetExtensionSuffix, SetVerbose, GetVerbose, GetMetadataValue
+from makepandacore import ColorText, LocateBinary, GetExtensionSuffix, SetVerbose, GetVerbose, GetMetadataValue
 from base64 import urlsafe_b64encode
 
 
@@ -678,6 +678,13 @@ if __debug__:
         if file.endswith('.py'):
             whl.write_file('pandac/' + file, os.path.join(pandac_dir, file))
 
+    # Let's also add the interrogate databases.
+    input_dir = os.path.join(pandac_dir, 'input')
+    if os.path.isdir(input_dir):
+        for file in os.listdir(input_dir):
+            if file.endswith('.in'):
+                whl.write_file('pandac/input/' + file, os.path.join(input_dir, file))
+
     # Add a panda3d-tools directory containing the executables.
     entry_points = '[console_scripts]\n'
     entry_points += 'eggcacher = direct.directscripts.eggcacher:main\n'
@@ -730,7 +737,7 @@ if __debug__:
 
 
 if __name__ == "__main__":
-    version = ParsePandaVersion("dtool/PandaVersion.pp")
+    version = GetMetadataValue('version')
 
     parser = OptionParser()
     parser.add_option('', '--version', dest = 'version', help = 'Panda3D version number (default: %s)' % (version), default = version)

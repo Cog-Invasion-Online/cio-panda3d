@@ -2159,7 +2159,7 @@ def SdkLocatePython(prefer_thirdparty_python=False):
         SDK["PYTHONEXEC"] = tp_python + "/bin/" + SDK["PYTHONVERSION"]
         SDK["PYTHON"] = tp_python + "/include/" + SDK["PYTHONVERSION"]
 
-    elif GetTarget() == 'darwin':
+    elif GetTarget() == 'darwin' and not PkgHasCustomLocation("PYTHON"):
         # On macOS, search for the Python framework directory matching the
         # version number of our current Python version.
         sysroot = SDK.get("MACOSX", "")
@@ -2321,7 +2321,6 @@ def SdkLocateWindows(version = '7.1'):
                 if not os.path.isdir(os.path.join(platsdk, 'Lib', verstring, 'um')):
                     continue
 
-                print(verstring)
                 vertuple = tuple(map(int, verstring.split('.')))
                 if vertuple > max_version:
                     version = verstring
@@ -3166,7 +3165,7 @@ def CopyPythonTree(dstdir, srcdir, lib2to3_fixers=[], threads=0):
                 if (NeedsBuild([dstpth], [srcpth])):
                     WriteBinaryFile(dstpth, ReadBinaryFile(srcpth))
 
-                    if ext == '.py' and not entry.endswith('-extensions.py'):
+                    if ext == '.py' and not entry.endswith('-extensions.py') and lib2to3 is not None:
                         refactor.append((dstpth, srcpth))
                         lib2to3_args.append(dstpth)
                     else:
@@ -3220,32 +3219,6 @@ def ParsePandaVersion(fn):
         f.close()
     except: pass
     return "0.0.0"
-
-def ParsePluginVersion(fn):
-    try:
-        f = open(fn, "r")
-        pattern = re.compile('^[ \t]*[#][ \t]*define[ \t]+P3D_PLUGIN_VERSION[ \t]+([0-9]+)[ \t]+([0-9]+)[ \t]+([0-9]+)')
-        for line in f:
-            match = pattern.match(line,0)
-            if (match):
-                f.close()
-                return match.group(1) + "." + match.group(2) + "." + match.group(3)
-        f.close()
-    except: pass
-    return "0.0.0"
-
-def ParseCoreapiVersion(fn):
-    try:
-        f = open(fn, "r")
-        pattern = re.compile('^[ \t]*[#][ \t]*define[ \t]+P3D_COREAPI_VERSION.*([0-9]+)[ \t]*$')
-        for line in f:
-            match = pattern.match(line,0)
-            if (match):
-                f.close()
-                return match.group(1)
-        f.close()
-    except: pass
-    return "0"
 
 ##########################################################################################
 #
@@ -3429,7 +3402,6 @@ def CalcLocation(fn, ipath):
     if (fn.endswith(".py")):  return CxxFindSource(fn, ipath)
     if (fn.endswith(".yxx")): return CxxFindSource(fn, ipath)
     if (fn.endswith(".lxx")): return CxxFindSource(fn, ipath)
-    if (fn.endswith(".pdef")):return CxxFindSource(fn, ipath)
     if (fn.endswith(".xml")): return CxxFindSource(fn, ipath)
     if (fn.endswith(".java")):return CxxFindSource(fn, ipath)
     if (fn.endswith(".egg")): return OUTPUTDIR+"/models/"+fn
