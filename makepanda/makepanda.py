@@ -626,7 +626,9 @@ if (COMPILER == "MSVC"):
     if (PkgSkip("HARFBUZZ")==0):
         LibName("HARFBUZZ", GetThirdpartyDir() + "harfbuzz/lib/harfbuzz.lib")
         IncDirectory("HARFBUZZ", GetThirdpartyDir() + "harfbuzz/include/harfbuzz")
-    if (PkgSkip("FFTW")==0):     LibName("FFTW",     GetThirdpartyDir() + "fftw/lib/fftw3.lib")
+    if (PkgSkip("FFTW")==0):
+        LibName("FFTW",     GetThirdpartyDir() + "fftw/lib/fftw.lib")
+        LibName("FFTW",     GetThirdpartyDir() + "fftw/lib/rfftw.lib")
     if (PkgSkip("ARTOOLKIT")==0):LibName("ARTOOLKIT",GetThirdpartyDir() + "artoolkit/lib/libAR.lib")
     if (PkgSkip("OPENCV")==0):   LibName("OPENCV",   GetThirdpartyDir() + "opencv/lib/cv.lib")
     if (PkgSkip("OPENCV")==0):   LibName("OPENCV",   GetThirdpartyDir() + "opencv/lib/highgui.lib")
@@ -778,7 +780,7 @@ if (COMPILER=="GCC"):
     SmartPkgEnable("FFMPEG",    ffmpeg_libs, ffmpeg_libs, ("libavformat/avformat.h", "libavcodec/avcodec.h", "libavutil/avutil.h"))
     SmartPkgEnable("SWSCALE",   "libswscale", "libswscale", ("libswscale/swscale.h"), target_pkg = "FFMPEG", thirdparty_dir = "ffmpeg")
     SmartPkgEnable("SWRESAMPLE","libswresample", "libswresample", ("libswresample/swresample.h"), target_pkg = "FFMPEG", thirdparty_dir = "ffmpeg")
-    SmartPkgEnable("FFTW",      "",          ("fftw3"), ("fftw.h"))
+    SmartPkgEnable("FFTW",      "",          ("fftw"), ("fftw.h"))
     SmartPkgEnable("FMODEX",    "",          ("fmodex"), ("fmodex", "fmodex/fmod.h"))
     SmartPkgEnable("FREETYPE",  "freetype2", ("freetype"), ("freetype2", "freetype2/freetype/freetype.h"))
     SmartPkgEnable("HARFBUZZ",  "harfbuzz",  ("harfbuzz"), ("harfbuzz", "harfbuzz/hb-ft.h"))
