@@ -177,6 +177,7 @@ def parseopts(args):
         "static","debversion=","rpmrelease=","p3dsuffix=","rtdist-version=",
         "directx-sdk=", "windows-sdk=", "msvc-version=", "clean", "use-icl",
         "target=", "arch=", "git-commit=", "no-copy-python",
+        "cggl-incdir=", "cggl-libdir=",
         ] + removedopts
 
     anything = 0
@@ -239,7 +240,7 @@ def parseopts(args):
             elif (option[2:] in removedopts):
                 Warn("Ignoring removed option %s" % (option))
             else:
-                for pkg in PkgListGet():
+                for pkg in PkgListGet() + ['CGGL']:
                     if option == "--use-" + pkg.lower():
                         PkgEnable(pkg)
                         break
@@ -396,6 +397,20 @@ elif target == 'linux' and (os.path.isfile("/lib/libc-2.5.so") or os.path.isfile
         PLATFORM = 'manylinux1-x86_64'
     else:
         PLATFORM = 'manylinux1-i686'
+
+elif target == 'linux' and (os.path.isfile("/lib/libc-2.12.so") or os.path.isfile("/lib64/libc-2.12.so")) and os.path.isdir("/opt/python"):
+    # Same sloppy check for manylinux2010.
+    if GetTargetArch() in ('x86_64', 'amd64'):
+        PLATFORM = 'manylinux2010-x86_64'
+    else:
+        PLATFORM = 'manylinux2010-i686'
+
+elif target == 'linux' and (os.path.isfile("/lib/libc-2.17.so") or os.path.isfile("/lib64/libc-2.17.so")) and os.path.isdir("/opt/python"):
+    # Same sloppy check for manylinux2014.
+    if GetTargetArch() in ('x86_64', 'amd64'):
+        PLATFORM = 'manylinux2014-x86_64'
+    else:
+        PLATFORM = 'manylinux2014-i686'
 
 elif not CrossCompiling():
     if HasTargetArch():
@@ -799,6 +814,60 @@ if (COMPILER=="GCC"):
         elif os.path.isfile(GetThirdpartyDir() + "ffmpeg/lib/libavcodec.a"):
             # Needed when linking ffmpeg statically on Linux.
             LibName("FFMPEG", "-Wl,-Bsymbolic")
+            # Don't export ffmpeg symbols from libp3ffmpeg when linking statically.
+            for ffmpeg_lib in ffmpeg_libs:
+                LibName("FFMPEG", "-Wl,--exclude-libs,%s.a" % (ffmpeg_lib))
+
+    if GetTarget() != "darwin":
+        for fcollada_lib in fcollada_libs:
+            LibName("FCOLLADA", "-Wl,--exclude-libs,lib%s.a" % (fcollada_lib))
+
+        if not PkgSkip("SWSCALE"):
+            LibName("SWSCALE", "-Wl,--exclude-libs,libswscale.a")
+
+        if not PkgSkip("SWRESAMPLE"):
+            LibName("SWRESAMPLE", "-Wl,--exclude-libs,libswresample.a")
+
+        if not PkgSkip("JPEG"):
+            LibName("JPEG", "-Wl,--exclude-libs,libjpeg.a")
+
+        if not PkgSkip("TIFF"):
+            LibName("TIFF", "-Wl,--exclude-libs,libtiff.a")
+
+        if not PkgSkip("PNG"):
+            LibName("PNG", "-Wl,--exclude-libs,libpng.a")
+            LibName("PNG", "-Wl,--exclude-libs,libpng16.a")
+
+        if not PkgSkip("SQUISH"):
+            LibName("SQUISH", "-Wl,--exclude-libs,libsquish.a")
+
+        if not PkgSkip("OPENEXR"):
+            LibName("OPENEXR", "-Wl,--exclude-libs,libHalf.a")
+            LibName("OPENEXR", "-Wl,--exclude-libs,libIex.a")
+            LibName("OPENEXR", "-Wl,--exclude-libs,libIexMath.a")
+            LibName("OPENEXR", "-Wl,--exclude-libs,libIlmImf.a")
+            LibName("OPENEXR", "-Wl,--exclude-libs,libIlmImfUtil.a")
+            LibName("OPENEXR", "-Wl,--exclude-libs,libIlmThread.a")
+            LibName("OPENEXR", "-Wl,--exclude-libs,libImath.a")
+
+        if not PkgSkip("VORBIS"):
+            LibName("VORBIS", "-Wl,--exclude-libs,libogg.a")
+            LibName("VORBIS", "-Wl,--exclude-libs,libvorbis.a")
+            LibName("VORBIS", "-Wl,--exclude-libs,libvorbisenc.a")
+            LibName("VORBIS", "-Wl,--exclude-libs,libvorbisfile.a")
+
+        if not PkgSkip("OPUS"):
+            LibName("OPUS", "-Wl,--exclude-libs,libogg.a")
+            LibName("OPUS", "-Wl,--exclude-libs,libopus.a")
+            LibName("OPUS", "-Wl,--exclude-libs,libopusfile.a")
+
+        if not PkgSkip("VRPN"):
+            LibName("VRPN", "-Wl,--exclude-libs,libvrpn.a")
+            LibName("VRPN", "-Wl,--exclude-libs,libquat.a")
+
+        if not PkgSkip("ARTOOLKIT"):
+            LibName("ARTOOLKIT", "-Wl,--exclude-libs,libAR.a")
+            LibName("ARTOOLKIT", "-Wl,--exclude-libs,libARMulti.a")
 
     if PkgSkip("FFMPEG") or GetTarget() == "darwin":
         cv_lib = ChooseLib(("opencv_core", "cv"), "OPENCV")
@@ -811,10 +880,13 @@ if (COMPILER=="GCC"):
     else:
         PkgDisable("OPENCV")
 
-    if GetTarget() == "darwin" and not PkgSkip("OPENAL"):
-        LibName("OPENAL", "-framework AudioUnit")
-        LibName("OPENAL", "-framework AudioToolbox")
-        LibName("OPENAL", "-framework CoreAudio")
+    if not PkgSkip("OPENAL"):
+        if GetTarget() == "darwin":
+            LibName("OPENAL", "-framework AudioUnit")
+            LibName("OPENAL", "-framework AudioToolbox")
+            LibName("OPENAL", "-framework CoreAudio")
+        else:
+            LibName("OPENAL", "-Wl,--exclude-libs,libopenal.a")
 
     if not PkgSkip("ASSIMP") and \
         os.path.isfile(GetThirdpartyDir() + "assimp/lib/libassimp.a"):
@@ -822,6 +894,10 @@ if (COMPILER=="GCC"):
         irrxml = GetThirdpartyDir() + "assimp/lib/libIrrXML.a"
         if os.path.isfile(irrxml):
             LibName("ASSIMP", irrxml)
+
+            if GetTarget() != "darwin":
+                LibName("ASSIMP", "-Wl,--exclude-libs,libassimp.a")
+                LibName("ASSIMP", "-Wl,--exclude-libs,libIrrXML.a")
 
     if not PkgSkip("PYTHON"):
         python_lib = SDK["PYTHONVERSION"]
@@ -834,6 +910,10 @@ if (COMPILER=="GCC"):
     SmartPkgEnable("OPENSSL",   "openssl",   ("ssl", "crypto"), ("openssl/ssl.h", "openssl/crypto.h"))
     SmartPkgEnable("ZLIB",      "zlib",      ("z"), "zlib.h")
     SmartPkgEnable("GTK2",      "gtk+-2.0")
+
+    if not PkgSkip("OPENSSL") and GetTarget() != "darwin":
+        LibName("OPENSSL", "-Wl,--exclude-libs,libssl.a")
+        LibName("OPENSSL", "-Wl,--exclude-libs,libcrypto.a")
 
     if GetTarget() != 'darwin':
         # CgGL is covered by the Cg framework, and we don't need X11 components on OSX
@@ -1058,7 +1138,7 @@ def CompileCxx(obj,src,opts):
             if ("BIGOBJ" in opts) or GetTargetArch() == 'x64':
                 cmd += " /bigobj"
 
-            cmd += " /Zm300 /DWIN32_VC /DWIN32"
+            cmd += " /Zm300"
             if 'EXCEPTIONS' in opts:
                 cmd += " /EHsc"
             else:
@@ -1066,9 +1146,6 @@ def CompileCxx(obj,src,opts):
 
             if 'RTTI' not in opts:
                  cmd += " /GR-"
-
-            if GetTargetArch() == 'x64':
-                cmd += " /DWIN64_VC /DWIN64"
 
             cmd += " /W3 " + BracketNameWithQuotes(src)
             oscmd(cmd)
@@ -1150,9 +1227,7 @@ def CompileCxx(obj,src,opts):
                 cmd += " /Qopt-report:2 /Qopt-report-phase:hlo /Qopt-report-phase:hpo"    # some optimization reports
             else:
                 cmd += " /W1 "
-            cmd += " /EHa /Zm300 /DWIN32_VC /DWIN32"
-            if GetTargetArch() == 'x64':
-                cmd += " /DWIN64_VC /DWIN64"
+            cmd += " /EHa /Zm300"
             cmd += " " + BracketNameWithQuotes(src)
 
             oscmd(cmd)
@@ -1391,9 +1466,9 @@ def CompileIgate(woutd,wsrc,opts):
     cmd += ' -srcdir %s -I%s' % (srcdir, srcdir)
     cmd += ' -DCPPPARSER -D__STDC__=1 -D__cplusplus=201103L'
     if (COMPILER=="MSVC"):
-        cmd += ' -DWIN32_VC -DWIN32 -D_WIN32'
+        cmd += ' -D_WIN32'
         if GetTargetArch() == 'x64':
-            cmd += ' -DWIN64_VC -DWIN64 -D_WIN64 -D_M_X64 -D_M_AMD64'
+            cmd += ' -D_WIN64 -D_M_X64 -D_M_AMD64'
         else:
             cmd += ' -D_M_IX86'
         # NOTE: this 1600 value is the version number for VC2010.
@@ -2657,13 +2732,27 @@ else:
     # otherwise, disable it.
     confautoprc = confautoprc.replace('#st#', '#')
 
-if PkgSkip("ASSIMP"):
+confautoprc = confautoprc.replace('\r\n', '\n')
+
+if PkgSkip("ASSIMP") or GetLinkAllStatic():
     confautoprc = confautoprc.replace("load-file-type p3assimp", "#load-file-type p3assimp")
+
+if PkgSkip("EGG") or GetLinkAllStatic():
+    confautoprc = confautoprc.replace("load-file-type egg pandaegg", "#load-file-type egg pandaegg")
+
+if PkgSkip("PANDATOOL") or PkgSkip("EGG") or GetLinkAllStatic():
+    confautoprc = confautoprc.replace("load-file-type p3ptloader", "#load-file-type p3ptloader")
+
+if PkgSkip("FFMPEG") or GetLinkAllStatic():
+    confautoprc = confautoprc.replace("load-audio-type * p3ffmpeg", "#load-audio-type * p3ffmpeg")
+    confautoprc = confautoprc.replace("load-video-type * p3ffmpeg", "#load-video-type * p3ffmpeg")
 
 if (os.path.isfile("makepanda/myconfig.in")):
     configprc = ReadFile("makepanda/myconfig.in")
 else:
     configprc = ReadFile("makepanda/config.in")
+
+configprc = configprc.replace('\r\n', '\n')
 
 if (GetTarget() == 'windows'):
     configprc = configprc.replace("$XDG_CACHE_HOME/panda3d", "$USER_APPDATA/Panda3D-%s" % MAJOR_VERSION)
@@ -2672,6 +2761,21 @@ else:
 
 if (GetTarget() == 'darwin'):
     configprc = configprc.replace("$XDG_CACHE_HOME/panda3d", "$HOME/Library/Caches/Panda3D-%s" % MAJOR_VERSION)
+
+if PkgSkip("GL") or GetLinkAllStatic():
+    configprc = configprc.replace("\nload-display pandagl", "\n#load-display pandagl")
+
+if PkgSkip("GLES") or GetLinkAllStatic():
+    configprc = configprc.replace("\n#load-display pandagles", "")
+
+if PkgSkip("DX9") or GetLinkAllStatic():
+    configprc = configprc.replace("\n#load-display pandadx9", "")
+
+if PkgSkip("TINYDISPLAY") or GetLinkAllStatic():
+    configprc = configprc.replace("\n#load-display p3tinydisplay", "")
+
+if PkgSkip("OPENAL") or GetLinkAllStatic():
+    configprc = configprc.replace("audio-library-name p3openal_audio", "#audio-library-name p3openal_audio")
 
 if GetTarget() == 'windows':
     # Convert to Windows newlines.
@@ -3209,7 +3313,7 @@ TargetAdd('interrogate.exe', input='interrogate_composite2.obj')
 TargetAdd('interrogate.exe', input='libp3cppParser.ilb')
 TargetAdd('interrogate.exe', input=COMMON_DTOOL_LIBS)
 TargetAdd('interrogate.exe', input='libp3interrogatedb.dll')
-TargetAdd('interrogate.exe', opts=['ADVAPI',  'OPENSSL', 'WINSHELL', 'WINGDI', 'WINUSER'])
+TargetAdd('interrogate.exe', opts=['ADVAPI', 'WINSHELL', 'WINGDI', 'WINUSER'])
 
 preamble = WriteEmbeddedStringFile('interrogate_preamble_python_native', inputs=[
 'dtool/src/interrogatedb/py_panda.cxx',
@@ -3224,14 +3328,14 @@ TargetAdd('interrogate_module.exe', input='interrogate_module_preamble_python_na
 TargetAdd('interrogate_module.exe', input='libp3cppParser.ilb')
 TargetAdd('interrogate_module.exe', input=COMMON_DTOOL_LIBS)
 TargetAdd('interrogate_module.exe', input='libp3interrogatedb.dll')
-TargetAdd('interrogate_module.exe', opts=['ADVAPI',  'OPENSSL', 'WINSHELL', 'WINGDI', 'WINUSER'])
+TargetAdd('interrogate_module.exe', opts=['ADVAPI', 'WINSHELL', 'WINGDI', 'WINUSER'])
 
 TargetAdd('parse_file_parse_file.obj', opts=OPTS, input='parse_file.cxx')
 TargetAdd('parse_file.exe', input='parse_file_parse_file.obj')
 TargetAdd('parse_file.exe', input='libp3cppParser.ilb')
 TargetAdd('parse_file.exe', input=COMMON_DTOOL_LIBS)
 TargetAdd('parse_file.exe', input='libp3interrogatedb.dll')
-TargetAdd('parse_file.exe', opts=['ADVAPI',  'OPENSSL', 'WINSHELL', 'WINGDI', 'WINUSER'])
+TargetAdd('parse_file.exe', opts=['ADVAPI', 'WINSHELL', 'WINGDI', 'WINUSER'])
 
 #
 # DIRECTORY: dtool/src/prckeys/
@@ -3242,7 +3346,7 @@ if (PkgSkip("OPENSSL")==0):
   TargetAdd('make-prc-key_makePrcKey.obj', opts=OPTS, input='makePrcKey.cxx')
   TargetAdd('make-prc-key.exe', input='make-prc-key_makePrcKey.obj')
   TargetAdd('make-prc-key.exe', input=COMMON_DTOOL_LIBS)
-  TargetAdd('make-prc-key.exe', opts=['ADVAPI',  'OPENSSL', 'WINSHELL', 'WINGDI', 'WINUSER'])
+  TargetAdd('make-prc-key.exe', opts=['ADVAPI', 'OPENSSL', 'WINSHELL', 'WINGDI', 'WINUSER'])
 
 #
 # DIRECTORY: dtool/src/test_interrogate/
@@ -3253,7 +3357,7 @@ TargetAdd('test_interrogate_test_interrogate.obj', opts=OPTS, input='test_interr
 TargetAdd('test_interrogate.exe', input='test_interrogate_test_interrogate.obj')
 TargetAdd('test_interrogate.exe', input='libp3interrogatedb.dll')
 TargetAdd('test_interrogate.exe', input=COMMON_DTOOL_LIBS)
-TargetAdd('test_interrogate.exe', opts=['ADVAPI',  'OPENSSL', 'WINSHELL', 'WINGDI', 'WINUSER'])
+TargetAdd('test_interrogate.exe', opts=['ADVAPI', 'WINSHELL', 'WINGDI', 'WINUSER'])
 
 #
 # DIRECTORY: dtool/src/dtoolbase/
@@ -3354,7 +3458,7 @@ TargetAdd('libpandaexpress.dll', input='p3express_composite1.obj')
 TargetAdd('libpandaexpress.dll', input='p3express_composite2.obj')
 TargetAdd('libpandaexpress.dll', input='p3pandabase_pandabase.obj')
 TargetAdd('libpandaexpress.dll', input=COMMON_DTOOL_LIBS)
-TargetAdd('libpandaexpress.dll', opts=['ADVAPI', 'WINSOCK2',  'OPENSSL', 'ZLIB', 'WINGDI', 'WINUSER', 'ANDROID'])
+TargetAdd('libpandaexpress.dll', opts=['ADVAPI', 'WINSOCK2', 'OPENSSL', 'ZLIB', 'WINGDI', 'WINUSER', 'ANDROID'])
 
 #
 # DIRECTORY: panda/src/pipeline/
@@ -3480,10 +3584,10 @@ PyTargetAdd('p3pnmimage_pfmFile_ext.obj', opts=OPTS, input='pfmFile_ext.cxx')
 # DIRECTORY: panda/src/nativenet/
 #
 
-OPTS=['DIR:panda/src/nativenet', 'OPENSSL', 'BUILDING:PANDA']
+OPTS=['DIR:panda/src/nativenet', 'BUILDING:PANDA']
 TargetAdd('p3nativenet_composite1.obj', opts=OPTS, input='p3nativenet_composite1.cxx')
 
-OPTS=['DIR:panda/src/nativenet', 'OPENSSL']
+OPTS=['DIR:panda/src/nativenet']
 IGATEFILES=GetDirectoryContents('panda/src/nativenet', ["*.h", "*_composite*.cxx"])
 TargetAdd('libp3nativenet.in', opts=OPTS, input=IGATEFILES)
 TargetAdd('libp3nativenet.in', opts=['IMOD:panda3d.core', 'ILIB:libp3nativenet', 'SRCDIR:panda/src/nativenet'])
@@ -3796,7 +3900,7 @@ TargetAdd('libp3dxml.in', opts=['IMOD:panda3d.core', 'ILIB:libp3dxml', 'SRCDIR:p
 #
 
 OPTS=['DIR:panda/metalibs/panda', 'BUILDING:PANDA', 'JPEG', 'PNG', 'HARFBUZZ',
-    'TIFF', 'OPENEXR', 'ZLIB', 'OPENSSL', 'FREETYPE', 'FFTW', 'ADVAPI', 'WINSOCK2',
+    'TIFF', 'OPENEXR', 'ZLIB', 'FREETYPE', 'FFTW', 'ADVAPI', 'WINSOCK2',
     'SQUISH', 'NVIDIACG', 'VORBIS', 'OPUS', 'WINUSER', 'WINMM', 'WINGDI', 'IPHLPAPI',
     'SETUPAPI', 'IOKIT']
 
@@ -4153,7 +4257,7 @@ if PkgSkip("OPENAL") == 0:
 #
 
 if (PkgSkip("OPENSSL")==0 and PkgSkip("DEPLOYTOOLS")==0):
-  OPTS=['DIR:panda/src/downloadertools', 'OPENSSL', 'ADVAPI', 'WINSOCK2', 'WINSHELL', 'WINGDI', 'WINUSER']
+  OPTS=['DIR:panda/src/downloadertools', 'ADVAPI', 'WINSOCK2', 'WINSHELL', 'WINGDI', 'WINUSER']
 
   TargetAdd('pdecrypt_pdecrypt.obj', opts=OPTS, input='pdecrypt.cxx')
   TargetAdd('pdecrypt.exe', input=['pdecrypt_pdecrypt.obj'])
@@ -4170,7 +4274,7 @@ if (PkgSkip("OPENSSL")==0 and PkgSkip("DEPLOYTOOLS")==0):
 #
 
 if (PkgSkip("ZLIB")==0 and PkgSkip("DEPLOYTOOLS")==0):
-  OPTS=['DIR:panda/src/downloadertools', 'ZLIB', 'OPENSSL', 'ADVAPI', 'WINSOCK2', 'WINSHELL', 'WINGDI', 'WINUSER']
+  OPTS=['DIR:panda/src/downloadertools', 'ZLIB', 'ADVAPI', 'WINSOCK2', 'WINSHELL', 'WINGDI', 'WINUSER']
 
   TargetAdd('multify_multify.obj', opts=OPTS, input='multify.cxx')
   TargetAdd('multify.exe', input=['multify_multify.obj'])
@@ -4719,7 +4823,7 @@ if (PkgSkip("DIRECT")==0):
   OPTS=['DIR:direct/src/dcparser', 'BUILDING:DIRECT_DCPARSER', 'WITHINPANDA', 'BISONPREFIX_dcyy']
   CreateFile(GetOutputDir()+"/include/dcParser.h")
   TargetAdd('p3dcparser_dcParser.obj', opts=OPTS, input='dcParser.yxx')
-  #TargetAdd('dcParser.h', input='p3dcparser_dcParser.obj', opts=['DEPENDENCYONLY'])
+  TargetAdd('dcParser.h', input='p3dcparser_dcParser.obj', opts=['DEPENDENCYONLY'])
   TargetAdd('p3dcparser_dcLexer.obj', opts=OPTS, input='dcLexer.lxx')
   TargetAdd('p3dcparser_composite1.obj', opts=OPTS, input='p3dcparser_composite1.cxx')
   TargetAdd('p3dcparser_composite2.obj', opts=OPTS, input='p3dcparser_composite2.cxx')
@@ -4750,10 +4854,10 @@ if (PkgSkip("DIRECT")==0):
 #
 
 if (PkgSkip("DIRECT")==0):
-  OPTS=['DIR:direct/src/distributed', 'DIR:direct/src/dcparser', 'WITHINPANDA', 'BUILDING:DIRECT', 'OPENSSL']
+  OPTS=['DIR:direct/src/distributed', 'DIR:direct/src/dcparser', 'WITHINPANDA', 'BUILDING:DIRECT']
   TargetAdd('p3distributed_config_distributed.obj', opts=OPTS, input='config_distributed.cxx')
 
-  OPTS=['DIR:direct/src/distributed', 'WITHINPANDA', 'OPENSSL']
+  OPTS=['DIR:direct/src/distributed', 'WITHINPANDA']
   IGATEFILES=GetDirectoryContents('direct/src/distributed', ["*.h", "*.cxx"])
   TargetAdd('libp3distributed.in', opts=OPTS, input=IGATEFILES)
   TargetAdd('libp3distributed.in', opts=['IMOD:panda3d.direct', 'ILIB:libp3distributed', 'SRCDIR:direct/src/distributed'])
@@ -4821,7 +4925,7 @@ if (PkgSkip("DIRECT")==0):
   TargetAdd('libp3direct.dll', input='p3motiontrail_config_motiontrail.obj')
   TargetAdd('libp3direct.dll', input='p3motiontrail_cMotionTrail.obj')
   TargetAdd('libp3direct.dll', input=COMMON_PANDA_LIBS)
-  TargetAdd('libp3direct.dll', opts=['ADVAPI',  'OPENSSL', 'WINUSER', 'WINGDI'])
+  TargetAdd('libp3direct.dll', opts=['ADVAPI', 'WINUSER', 'WINGDI'])
 
   PyTargetAdd('direct_module.obj', input='libp3dcparser.in')
   PyTargetAdd('direct_module.obj', input='libp3showbase.in')
@@ -4849,7 +4953,7 @@ if (PkgSkip("DIRECT")==0):
   PyTargetAdd('direct.pyd', input='libp3direct.dll')
   PyTargetAdd('direct.pyd', input='libp3interrogatedb.dll')
   PyTargetAdd('direct.pyd', input=COMMON_PANDA_LIBS)
-  PyTargetAdd('direct.pyd', opts=['OPENSSL', 'WINUSER', 'WINGDI', 'WINSOCK2'])
+  PyTargetAdd('direct.pyd', opts=['WINUSER', 'WINGDI', 'WINSOCK2'])
 
 #
 # DIRECTORY: direct/src/dcparse/
